@@ -7,9 +7,20 @@ import os
 from transformers import pipeline, LlamaTokenizer, LlamaForCausalLM
 
 # Step 1: Load the LLaMA model and tokenizer
-model_name = "meta-llama/Meta-Llama-3-8B"  # Replace with the actual model name on Hugging Face Hub
-tokenizer = LlamaTokenizer.from_pretrained(model_name)
-model = LlamaForCausalLM.from_pretrained(model_name)
+# model_name = "meta-llama/Llama-3.2-1B"  # Replace with the actual model name on Hugging Face Hub
+# Load model directly
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
+model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B")
+# # model = LlamaForCausalLM.from_pretrained(model_name)
+# try:
+#     tokenizer = LlamaTokenizer.from_pretrained(model_name, use_auth_token=True)
+#     model = LlamaForCausalLM.from_pretrained(model_name, use_auth_token=True)
+#     print("Tokenizer loaded successfully!")
+# except OSError as e:
+#     print(f"Error loading tokenizer: {e}")
+
 
 # Initialize the Hugging Face pipeline with the model and tokenizer
 chatbot = pipeline("text-generation", model=model, tokenizer=tokenizer)
@@ -40,18 +51,15 @@ def chat(chats):
     """
     
     # Step 2: Prepare the chat history as a single string
-    chat_history = []
+    prompt = ""
     for c in chats:
-        # Add the user prompt and assistant's answer to the chat history
-        chat_history.append({"role": "user", "content": c["prompt"]})
-        if "answer" in c.keys():
-            chat_history.append({"role": "assistant", "content": c["answer"]})
-        else:
-            # If there is no answer, it means this is the prompt we need a response for
-            break
-    
+        prompt += f"Human: {c['prompt']}\n"
+        if "answer" in c:
+            prompt += f"Assistant: {c['answer']}\n"
+    prompt += "Assistant: "
+
     # Step 3: Generate the model's response
-    response = chatbot(chat_history, max_length=1000, num_return_sequences=1)
+    response = chatbot(prompt, max_length=1000, num_return_sequences=1)
     
     # Step 4: Extract and return the generated text
     generated_text = response[0]['generated_text']

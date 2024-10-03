@@ -4,17 +4,14 @@ The function takes a list of chat messages and returns the response from the lan
 """
 
 import os
-from dotenv import load_dotenv
-import openai
+import ollama
 
-# Load environment variables from .env file
-load_dotenv()
+# Step 1: Set your OpenAI API key
+# Replace 'YOUR_API_KEY_HERE' with your actual API key
+# os.environ['OPENAI_API_KEY'] = 'YOUR_API_KEY_HERE'
 
-# Get the API key from the environment variable
-api_key = os.getenv('OPENAI_API_KEY')
-
-# Initialize the OpenAI client with the API key
-openai.api_key = api_key
+# # Initialize the OpenAI client with the API key
+# openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 # Don't change the name of the function or the function signature
 def chat(chats):
@@ -40,7 +37,7 @@ def chat(chats):
         {"prompt": "What is the weather like today?"}
     ]
     """
-    
+    print('inside ollama')
     # Step 2: Prepare the messages list for the API request
     messages = []
     for c in chats:
@@ -52,13 +49,10 @@ def chat(chats):
         else:
             # If there is no answer, it means this is the prompt we need a response for
             break
-    
+    print('after for loop')
     # Step 3: Make the API request to get the model's response
-    response = openai.ChatCompletion.create(
-        model="gpt-4-0613",  # Specify the model you want to use
-        messages=messages,   # Pass the messages list to the API
-        temperature=0,       # Set the temperature for response generation
-    )
-    print('response:', response)
+    response = ollama.chat(model='llama3.2', messages=messages)
+    print('after ollama')
+    print(response.message.message.content)    
     # Step 4: Return the model's response
-    return response['choices'][0]['message']['content']
+    return response.message.message.content
