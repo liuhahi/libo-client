@@ -6,9 +6,12 @@ import importlib
 import threading
 import time
 import argparse
+import json
+import requests
 
 app = Flask(__name__)
 CORS(app)  # This enables CORS for all domains on all routes
+baseAPI = "https://redteaming.virtueai.io"
 
 @app.route('/testlocalchat', methods=['POST'])
 def testlocalchat():
@@ -49,9 +52,112 @@ def get_existing_models():
             model_files.append((f, formatted_time))
             
     return jsonify(message=model_files, trigger=True), 200
-    
-    
 
+
+def initialize_scan(scan_name, model_name):
+    ScanUrl = baseAPI + "/scan_subcategory"
+    
+    data = {
+        "userId": "test_user",  # Don't modify this
+        "selectedDatasets": [
+            {
+                "name": "Fairness",
+                "subcategories": ["Salary Prediction", "Crime Prediction"]
+            }
+        ],  # Don't modify this
+        "scanName": scan_name,  # Replace with your chosen scan name
+        "modelName": model_name,  # Replace with your model file name
+        "clientAddress": "http://localhost:4410"  # Replace with your client address, don't modify the default port 4410
+    }
+    
+    headers = {"Content-Type": "application/json"}
+    
+    response = requests.post(ScanUrl, json=data, headers=headers)
+
+    if response.status_code == 200:
+        print("Scan initialized successfully!")
+        filename = response.json().get('filename')
+        print(f"Filename: {filename}")
+        return filename
+    else:
+        print(f"Scan initialization failed: {response.status_code}")
+        print(response.text)
+        return None
+
+# Run the initialization
+
+
+@app.route('/scan', methods=['POST'])
+def scan():        
+    data = request.get_json()
+    scan_name = data.get('scan_name')
+    model_name = data.get('model_name')
+    filename = initialize_scan(scan_name, model_name)
+    print("Save this filename to use in the status check and results retrieval.")
+    return jsonify({'message': 'Scan started', 'trigger': True, 'filename': filename}), 200
+
+@app.route('/check_scan_status', methods=['POST'])
+def check_scan_status():
+    data = request.get_json()
+    filename = data.get('filename')
+    CheckScanUrl = baseAPI + '/api/getreport'
+    print('filename:', filename)
+    data = {"filename": filename}
+    headers = {"Content-Type": "application/json"}
+    
+    response = requests.post(CheckScanUrl, json=data, headers=headers)
+
+    if response.status_code == 200:
+        report_data = response.json()
+        print(f"Scanning progress: {report_data.get('scanning_progress')}%")
+        return jsonify({'message': f"Scanning progress: {report_data.get('scanning_progress')}%", 'trigger': True, 'filename': filename}), 200
+    elif response.status_code == 400:
+        print("Error: Filename not provided")        
+    elif response.status_code == 404:
+        print("Error: File not found")
+    else:
+        print(f"Status check failed: {response.status_code}")
+        print(response.text)
+    return jsonify({'message': 'Scan status checked', 'trigger': True, 'filename': filename}), 200
+
+@app.route('/check_results', methods=['POST'])
+def check_results(filename):
+    resultUrl = baseAPI + f"/api/data/{filename}"
+    
+    response = requests.get(resultUrl)
+
+    if response.status_code == 200:
+        json_data = response.json()
+        print("Run data summary:")
+        print(f"Category scores: {json_data.get('averages')}")
+        print(f"Subcategory scores: {json_data.get('averages_sub')}")
+        print(f"Number of failure cases: {len(json_data.get('failures', []))}")
+        print("Use json_data['scores'] for a detailed breakdown of results by risk levels.")
+        print("Use json_data['failures'] to see the entire list of failure cases.")
+        return json_data
+    elif response.status_code == 404:
+        print("Error: Run not found")
+    else:
+        print(f"Results retrieval failed: {response.status_code}")
+        print(response.text)
+        
+    # Set the save path for the JSON file
+    # Replace this with your desired file path and name
+    save_path = "results.json"
+
+    # Run the results check
+    # If 'filename' is not defined, replace it with the actual filename from the initialization step
+    json_data = check_results(filename)
+
+    # Save the data if it was successfully retrieved
+    if json_data:
+        save_json_data(json_data, save_path)        
+    return None
+
+def save_json_data(data, save_path):
+    with open(save_path, 'w') as f:
+        json.dump(data, f, indent=4)
+    print(f"Data saved to {save_path}")
 # Dictionary to store models and their last accessed time
 models = {}
 model_lock = threading.Lock()
